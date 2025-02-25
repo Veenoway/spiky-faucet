@@ -35,7 +35,20 @@ const allowedChannelIds: string[] = [
   "1343932669473325167",
   "1343593091424325717",
 ];
-const allowedGiveMonRoleIds: string[] = [
+
+const allowedFaucetRoles: string[] = [
+  "1212732543447867432",
+  "1209447876652961823",
+  "1330859388071575583",
+  "1210935213690200125",
+  "1202897827232219176",
+  "1260311106992476331",
+  "1210927185855127582",
+  "1327363963700121631",
+  "1218983061014839346",
+];
+
+const allowedGiveMonRoles: string[] = [
   "1202897827232219176",
   "1260311106992476331",
   "1218983061014839346",
@@ -44,14 +57,14 @@ const allowedGiveMonRoleIds: string[] = [
 let totalSent: bigint = ethers.parseEther("0");
 const MAX_SENT: bigint = ethers.parseEther("300");
 
-const isValidAddress = (address: string): boolean => {
+function isValidAddress(address: string): boolean {
   try {
     ethers.getAddress(address);
     return true;
   } catch {
     return false;
   }
-};
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -79,7 +92,7 @@ async function processFaucetQueue() {
   while (faucetQueue.length > 0) {
     const item = faucetQueue.shift()!;
     try {
-      const faucetAmount: bigint = ethers.parseEther("0.2");
+      const faucetAmount: bigint = ethers.parseEther("0.05");
       if (totalSent + faucetAmount > MAX_SENT) {
         throw new Error(
           "Faucet reached its daily limit. No more tokens can be sent."
@@ -112,7 +125,6 @@ async function processFaucetQueue() {
       }
 
       totalSent += faucetAmount;
-
       const userId = item.message.author.id;
       claimCooldown.set(userId, Date.now());
 
@@ -132,15 +144,25 @@ client.on("messageCreate", async (message: Message) => {
   const args = message.content.split(" ");
   const command = args[0];
 
-  const hasRequiredRole = message.member?.roles.cache.some((role) =>
-    allowedGiveMonRoleIds.includes(role.id)
+  const hasFaucetRole = message.member?.roles.cache.some((role) =>
+    allowedFaucetRoles.includes(role.id)
+  );
+
+  const hasGiveMonRole = message.member?.roles.cache.some((role) =>
+    allowedGiveMonRoles.includes(role.id)
   );
 
   if (command === "!faucet") {
+    if (!hasFaucetRole) {
+      await message.reply("You aren't allowed to use the faucet command.");
+      return;
+    }
+
     if (args.length < 2) {
       await message.reply("Invalid EVM address. Usage: !faucet <address>");
       return;
     }
+
     const userEthAddress = args[1];
     if (!isValidAddress(userEthAddress)) {
       await message.reply("Invalid EVM address. Usage: !faucet <address>");
@@ -158,7 +180,7 @@ client.on("messageCreate", async (message: Message) => {
       }
     }
 
-    const faucetAmount: bigint = ethers.parseEther("0.2");
+    const faucetAmount: bigint = ethers.parseEther("0.05");
     if (totalSent + faucetAmount > MAX_SENT) {
       await message.reply(
         "Faucet reached its daily limit. No more tokens can be sent."
@@ -190,7 +212,7 @@ client.on("messageCreate", async (message: Message) => {
   }
 
   if (command === "!give-mon") {
-    if (!hasRequiredRole) {
+    if (!hasGiveMonRole) {
       await message.reply("You aren't allowed to use this command.");
       return;
     }
@@ -230,7 +252,7 @@ client.on("messageCreate", async (message: Message) => {
   }
 
   if (command === "!daily") {
-    if (!hasRequiredRole) {
+    if (!hasGiveMonRole) {
       await message.reply("You aren't allowed to use this command.");
       return;
     }
@@ -246,7 +268,7 @@ client.on("messageCreate", async (message: Message) => {
   }
 
   if (command === "!balance") {
-    if (!hasRequiredRole) {
+    if (!hasGiveMonRole) {
       await message.reply("You aren't allowed to use this command.");
       return;
     }

@@ -11,7 +11,6 @@ const client = new Client({
   ],
 });
 
-// Variables d'environnement
 const DISCORD_TOKEN: string | undefined = process.env.DISCORD_TOKEN;
 const PROVIDER_URL: string | undefined = process.env.PROVIDER_URL;
 const PRIVATE_KEY: string | undefined = process.env.PRIVATE_KEY;
@@ -155,6 +154,14 @@ client.on("messageCreate", async (message: Message) => {
   }
 
   if (command === "!daily") {
+    if (
+      !message.member?.roles.cache.some((role) =>
+        allowedGiveMonRoleIds.includes(role.id)
+      )
+    ) {
+      await message.react("❌");
+      return;
+    }
     const remaining: bigint = MAX_SENT - totalSent;
     if (remaining <= ethers.parseEther("0")) {
       await message.reply("Faucet reached his daily limit.");
@@ -167,6 +174,14 @@ client.on("messageCreate", async (message: Message) => {
   }
 
   if (command === "!balance") {
+    if (
+      !message.member?.roles.cache.some((role) =>
+        allowedGiveMonRoleIds.includes(role.id)
+      )
+    ) {
+      await message.react("❌");
+      return;
+    }
     try {
       const balance = await provider.getBalance(CONTRACT_ADDRESS);
       const formattedBalance = ethers.formatEther(balance);

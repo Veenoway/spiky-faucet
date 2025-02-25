@@ -53,6 +53,78 @@ const isValidAddress = (address: string): boolean => {
   }
 };
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Transaction timeout")), ms)
+    ),
+  ]);
+}
+
+interface FaucetQueueItem {
+  playerAddress: string;
+  message: Message;
+  resolve: (txHash: string) => void;
+  reject: (error: any) => void;
+}
+
+const faucetQueue: FaucetQueueItem[] = [];
+let processingFaucetQueue = false;
+
+async function processFaucetQueue() {
+  if (processingFaucetQueue) return;
+  processingFaucetQueue = true;
+
+  while (faucetQueue.length > 0) {
+    const item = faucetQueue.shift()!;
+    try {
+      const faucetAmount: bigint = ethers.parseEther("0.2");
+      if (totalSent + faucetAmount > MAX_SENT) {
+        throw new Error(
+          "Faucet reached its daily limit. No more tokens can be sent."
+        );
+      }
+
+      let nonce = await provider.getTransactionCount(wallet.address, "pending");
+      let txReceipt;
+
+      try {
+        const txPromise = faucetContract
+          .faucet(item.playerAddress, { nonce })
+          .then((tx) => tx.wait());
+
+        txReceipt = await withTimeout(txPromise, 60000);
+      } catch (error: any) {
+        if (
+          error.code === "NONCE_EXPIRED" ||
+          error.message.includes("Nonce too low")
+        ) {
+          nonce = await provider.getTransactionCount(wallet.address, "pending");
+          const txPromiseRetry = faucetContract
+            .faucet(item.playerAddress, { nonce })
+            .then((tx) => tx.wait());
+
+          txReceipt = await withTimeout(txPromiseRetry, 60000);
+        } else {
+          throw error;
+        }
+      }
+
+      totalSent += faucetAmount;
+
+      const userId = item.message.author.id;
+      claimCooldown.set(userId, Date.now());
+
+      item.resolve(txReceipt.transactionHash);
+    } catch (error) {
+      item.reject(error);
+    }
+  }
+
+  processingFaucetQueue = false;
+}
+
 client.on("messageCreate", async (message: Message) => {
   if (message.author.bot) return;
   if (!allowedChannelIds.includes(message.channel.id)) return;
@@ -78,7 +150,6 @@ client.on("messageCreate", async (message: Message) => {
     const userId = message.author.id;
     const now = Date.now();
     const cooldownDuration = 24 * 60 * 60 * 1000;
-
     if (claimCooldown.has(userId)) {
       const lastClaim = claimCooldown.get(userId)!;
       if (now < lastClaim + cooldownDuration) {
@@ -90,24 +161,31 @@ client.on("messageCreate", async (message: Message) => {
     const faucetAmount: bigint = ethers.parseEther("0.2");
     if (totalSent + faucetAmount > MAX_SENT) {
       await message.reply(
-        "Faucet reached his daily limit. No more tokens can be sent."
+        "Faucet reached its daily limit. No more tokens can be sent."
       );
       return;
     }
 
+    const txPromise = new Promise<string>((resolve, reject) => {
+      faucetQueue.push({
+        playerAddress: userEthAddress,
+        message,
+        resolve,
+        reject,
+      });
+    });
+    processFaucetQueue();
+
     try {
-      const nonce = await provider.getTransactionCount(
-        wallet.address,
-        "pending"
-      );
-      const tx = await faucetContract.faucet(userEthAddress, { nonce });
-      await tx.wait();
-      claimCooldown.set(userId, now);
-      totalSent += faucetAmount;
+      const txHash = await txPromise;
       await message.react("✅");
+      console.log("Faucet transaction successful:", txHash);
     } catch (error: any) {
-      console.error("Error while calling faucet:", error);
+      console.error("Error while processing faucet:", error);
       await message.react("❌");
+      await message.reply(
+        "An error occurred while processing your faucet request."
+      );
     }
   }
 
@@ -117,29 +195,23 @@ client.on("messageCreate", async (message: Message) => {
       return;
     }
     if (args.length < 3) {
-      await message.react("❌");
+      await message.reply("Usage: !give-mon <address> <amount>");
       return;
     }
     const targetAddress = args[1];
     const amountInput = args[2];
     if (!isValidAddress(targetAddress)) {
-      await message.react("❌");
-      return;
-    }
-    let amount: bigint;
-    try {
-      amount = ethers.parseUnits(amountInput, 18);
-    } catch (error: any) {
-      await message.react("❌");
-      return;
-    }
-    if (totalSent + amount > MAX_SENT) {
-      await message.reply(
-        "Faucet reached his daily limit. No more tokens can be sent."
-      );
+      await message.reply("Invalid target EVM address.");
       return;
     }
     try {
+      const amount: bigint = ethers.parseUnits(amountInput, 18);
+      if (totalSent + amount > MAX_SENT) {
+        await message.reply(
+          "Faucet reached its daily limit. No more tokens can be sent."
+        );
+        return;
+      }
       const nonce = await provider.getTransactionCount(
         wallet.address,
         "pending"
@@ -148,9 +220,12 @@ client.on("messageCreate", async (message: Message) => {
       await tx.wait();
       totalSent += amount;
       await message.react("✅");
+      console.log("give-mon transaction successful:", tx.hash);
     } catch (error: any) {
-      console.error("Error while calling giveMon:", error);
-      await message.react("❌");
+      console.error("Error while processing give-mon:", error);
+      await message.reply(
+        "An error occurred while processing your give-mon request."
+      );
     }
   }
 
@@ -161,7 +236,7 @@ client.on("messageCreate", async (message: Message) => {
     }
     const remaining: bigint = MAX_SENT - totalSent;
     if (remaining <= ethers.parseEther("0")) {
-      await message.reply("Faucet reached his daily limit.");
+      await message.reply("Faucet reached its daily limit.");
     } else {
       const formattedRemaining = ethers.formatEther(remaining);
       await message.reply(
@@ -181,7 +256,9 @@ client.on("messageCreate", async (message: Message) => {
       await message.reply(`Contract balance: ${formattedBalance} MON`);
     } catch (error: any) {
       console.error("Error while retrieving contract balance:", error);
-      await message.react("❌");
+      await message.reply(
+        "An error occurred while retrieving the contract balance."
+      );
     }
   }
 });

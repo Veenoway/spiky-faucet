@@ -31,7 +31,10 @@ const faucetContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, wallet);
 
 const claimCooldown: Map<string, number> = new Map();
 
-const allowedChannelIds: string[] = ["1343914711460347945"];
+const allowedChannelIds: string[] = [
+  "1343932669473325167",
+  "1343593091424325717",
+];
 const allowedGiveMonRoleIds: string[] = [
   "1202897827232219176",
   "1260311106992476331",
@@ -63,12 +66,12 @@ client.on("messageCreate", async (message: Message) => {
 
   if (command === "!faucet") {
     if (args.length < 2) {
-      await message.react("Invalid EVM address. Usage: !faucet <address>");
+      await message.reply("Invalid EVM address. Usage: !faucet <address>");
       return;
     }
     const userEthAddress = args[1];
     if (!isValidAddress(userEthAddress)) {
-      await message.react("Invalid EVM address. Usage: !faucet <address>");
+      await message.reply("Invalid EVM address. Usage: !faucet <address>");
       return;
     }
 

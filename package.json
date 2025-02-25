@@ -1,0 +1,26 @@
+{
+  "name": "spiky-faucet",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Veenoway/spiky-faucet.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Veenoway/spiky-faucet/issues"
+  },
+  "homepage": "https://github.com/Veenoway/spiky-faucet#readme",
+  "dependencies": {
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.5",
+    "web-streams-polyfill": "^4.1.0"
+  }
+}

@@ -40,7 +40,7 @@ const allowedGiveMonRoleIds: string[] = [
 ];
 
 let totalSent: bigint = ethers.parseEther("0");
-const MAX_SENT: bigint = ethers.parseEther("1");
+const MAX_SENT: bigint = ethers.parseEther("300");
 
 const isValidAddress = (address: string): boolean => {
   try {

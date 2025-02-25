@@ -32,7 +32,6 @@ const faucetContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, wallet);
 const claimCooldown: Map<string, number> = new Map();
 
 const allowedChannelIds: string[] = ["1343914711460347945"];
-
 const allowedGiveMonRoleIds: string[] = [
   "1202897827232219176",
   "1260311106992476331",
@@ -58,14 +57,18 @@ client.on("messageCreate", async (message: Message) => {
   const args = message.content.split(" ");
   const command = args[0];
 
+  const hasRequiredRole = message.member?.roles.cache.some((role) =>
+    allowedGiveMonRoleIds.includes(role.id)
+  );
+
   if (command === "!faucet") {
     if (args.length < 2) {
-      await message.react("❌");
+      await message.react("Invalid EVM address. Usage: !faucet <address>");
       return;
     }
     const userEthAddress = args[1];
     if (!isValidAddress(userEthAddress)) {
-      await message.react("❌");
+      await message.react("Invalid EVM address. Usage: !faucet <address>");
       return;
     }
 
@@ -106,13 +109,8 @@ client.on("messageCreate", async (message: Message) => {
   }
 
   if (command === "!give-mon") {
-    await message.member?.fetch();
-    if (
-      !message.member?.roles.cache.some((role) =>
-        allowedGiveMonRoleIds.includes(role.id)
-      )
-    ) {
-      await message.react("❌");
+    if (!hasRequiredRole) {
+      await message.reply("You aren't allowed to use this command.");
       return;
     }
     if (args.length < 3) {
@@ -154,12 +152,8 @@ client.on("messageCreate", async (message: Message) => {
   }
 
   if (command === "!daily") {
-    if (
-      !message.member?.roles.cache.some((role) =>
-        allowedGiveMonRoleIds.includes(role.id)
-      )
-    ) {
-      await message.react("❌");
+    if (!hasRequiredRole) {
+      await message.reply("You aren't allowed to use this command.");
       return;
     }
     const remaining: bigint = MAX_SENT - totalSent;
@@ -174,12 +168,8 @@ client.on("messageCreate", async (message: Message) => {
   }
 
   if (command === "!balance") {
-    if (
-      !message.member?.roles.cache.some((role) =>
-        allowedGiveMonRoleIds.includes(role.id)
-      )
-    ) {
-      await message.react("❌");
+    if (!hasRequiredRole) {
+      await message.reply("You aren't allowed to use this command.");
       return;
     }
     try {

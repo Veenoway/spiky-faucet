@@ -1,5 +1,5 @@
 {
-  "watch": ["**/*.ts"],
-  "ext": "ts",
-  "exec": "node --loader ts-node/esm index.ts"
+  "watch": ["**/*.js"],
+  "ext": "js",
+  "exec": "node --loader ts-node/esm new.js"
 }
